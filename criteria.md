@@ -42,61 +42,36 @@ Given a query that matches no listings, the agent stops before calling
 
 ---
 
-## 3. Something about state
+## 3. The item search picks is the item both later tools receive
 
-<!-- YOU WRITE THIS ONE.
-
-     How would you know that the item your search found is the same item the
-     next tool received? Name something countable or observable.
-
-     This is the criterion people find hardest, because state failure doesn't
-     look like state failure — it looks like a tool problem. Something that
-     compares session["selected_item"] against what actually reached
-     suggest_outfit is the shape you're after. -->
-
-
+For `vintage graphic tee size L under $30`, the listing that search ranks first, the listing saved in `session["selected_item"]`, and the listing that `suggest_outfit` and `create_fit_card` each actually receive (their `in:` lines in the trace) are the same listing, with the same title, price and platform, in 5 of 5 tries.
 
 **Why this target:**
+No model touches this hand-off. Parsing is regex, `search_listings` scores keywords and sorts the same way every time (ties stay in data order), and the loop copies `search_results[0]` into the session. So a single mismatch is a bug in the loop, not randomness, and 4 of 5 would excuse a real bug. It isn't a free pass either: unit 4 moves search behind MCP and adds trace and error handling around exactly this hand-off. This query's top two results tie at score 3 with different prices (Graphic Tee — 2003 Tour Bootleg Style at $24, Vintage Band Tee at $19), so passing on the wrong one would show up in both title and price.
 
-
+**How I'll mark a try:** In `run_agent`, read `item = session["selected_item"]` once, pass that same `item` to each tool, and log `inputs=item` on its trace step, so the trace shows what the tool really got. PASS if the `search_listings` step's `out:` line starts with the `selected_item` title, and the `suggest_outfit` and `create_fit_card` `in:` lines both read exactly like the `selected_item` line. If there are two search steps, use the last one before `suggest_outfit`. FAIL if any check differs, a step is missing, the try says `stopped early: yes`, or it crashed.
 
 ---
 
-## 4. Something about the fit card
+## 4. The fit card states the real price once and names the platform
 
-<!-- YOU WRITE THIS ONE.
-
-     The fit card calls a model, so the same input can produce different words
-     each time. That's not a bug — it's the nature of the tool. So what would
-     make it acceptable?
-
-     Think about what you'd actually be unhappy to see. A caption that never
-     mentions the price? Two different items producing the same opening
-     sentence? A card longer than a caption anyone would post? Any of those can
-     be turned into a number. -->
-
-
+For `silk slip dress in midi length under $40` (always the $30 90s Silk Slip Dress on depop), the fit card contains exactly one dollar amount, that amount is the item's real price, and the card names the platform, in at least 4 of 5 tries.
 
 **Why this target:**
+`create_fit_card` runs at temperature 0.9 with caching off, and nothing checks the caption before it's returned. One stray sample, such as two caption options each with a price or an invented "retail was $80", goes straight to the user, so I won't promise 5 of 5. But the exact price and the platform are written into the prompt, which asks for each once. Missing more than once in five would point at the prompt rather than luck, so 3 of 5 would be too easy. A wrong or doubled price is also the mistake a shopper would notice first.
 
-
+**How I'll mark a try:** Look only inside that try's `Fit card:` block, because the `selected_item` line and the trace also contain `$30.0`. PASS if there is exactly one `$`, it's directly followed by 30, 30.0 or 30.00 with no more digits (`$30`, `$30!` and `$30.00` count; `$300`, `$30.50` and "30 bucks" don't), and "depop" appears anywhere in the card, ignoring capitalization ("Depop" and "#depopfinds" count). FAIL if any check fails or there is no fit card.
 
 ---
 
-## 5. Your choice
+## 5. A broken API key gives a message, not a crash
 
-<!-- YOU WRITE THIS ONE TOO.
-
-     Pick something you actually care about getting right. Speed, the empty
-     wardrobe path, what happens when the model can't be reached, whether the
-     search respects a price ceiling — anything, as long as it names a number
-     or an observable outcome. -->
-
-
+With `GEMINI_API_KEY` deliberately broken and the query `90s track jacket in size M` (which search can match), the run ends with `session["error"]` containing "API key", no crash, and no outfit suggestion or fit card, in 5 of 5 tries.
 
 **Why this target:**
+Nothing here is random. With a bad key, the first model call (`suggest_outfit`) fails the same way every try: `generate()` doesn't retry it, and raises `ModelUnavailable` with a message that already says "API key". So a handler either works every time or never, and 4 of 5 would accept a stack trace for a failure I caused on purpose. It isn't an easy 5 of 5 either: `run_agent` has no handler today, so every try crashes. And because my loop re-runs whichever session field is still empty, a handler that sets `session["error"]` but doesn't `return` calls `suggest_outfit` again every pass until `check_iterations` stops it, which is still a crash.
 
-
+**How I'll mark a try:** Run this scenario in its own pass with the key broken just for that command: `GEMINI_API_KEY=not-a-real-key python run_eval.py --label badkey` (a key set in the shell wins over `.env`, so `.env` stays untouched). Mark only the criterion 5 row in that file. Don't test with `python app.py ask`, because `app.py` catches every exception and would hide a crash. PASS if there is no `Crashed:` block, the try says `stopped early: yes — ` followed by a message containing "API key", and there is no `Outfit suggestion:` or `Fit card:` block.
 
 ---
 

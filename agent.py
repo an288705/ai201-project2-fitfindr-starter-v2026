@@ -13,6 +13,8 @@ Build and test your three tools in `tools.py` first. Then come here.
     python agent.py          runs both example paths below
 """
 
+import re
+
 import config
 import trace
 from tools import search_listings, suggest_outfit, create_fit_card
@@ -45,6 +47,114 @@ def new_session(query: str, wardrobe: dict) -> dict:
         "fit_card": None,            # what create_fit_card returned
         "error": None,               # set when the run ended early
     }
+
+
+# ── query parsing ─────────────────────────────────────────────────────────────
+# Regex, not the model: parsing is deterministic, testable on its own, and
+# costs no model calls.
+
+# "under $30", "below 30", "up to $45.50", or a bare "$30"
+_PRICE_RE = re.compile(
+    r"(?:under|below|less than|max(?:imum)?|up to|at most|<=?)\s*\$?\s*(\d+(?:\.\d+)?)"
+    r"|\$\s*(\d+(?:\.\d+)?)(?:\s*(?:or less|or under|max))?",
+    re.IGNORECASE,
+)
+
+# "size M", "size: small", "size US 8.5", "size W30", "size 8" — the word
+# "size" is required, so "medium wash" doesn't get read as size M.
+_SIZE_RE = re.compile(
+    r"\b(?:size|sz)\s*:?\s*("
+    r"us\s*\d+(?:\.\d+)?|w\d+(?:\s*l\d+)?|\d+(?:\.\d+)?|one size"
+    r"|extra small|extra large|x-?small|x-?large|small|medium|large"
+    r"|xxs|xxl|xs|xl|s|m|l"
+    r")\b",
+    re.IGNORECASE,
+)
+
+_SIZE_WORDS = {
+    "extra small": "XS", "x-small": "XS", "xsmall": "XS", "small": "S",
+    "medium": "M", "large": "L",
+    "extra large": "XL", "x-large": "XL", "xlarge": "XL",
+}
+
+# Words that describe the asking, not the item. Left in, they'd only add noise
+# to the keyword match.
+_FILLER = {
+    "looking", "for", "i", "im", "i'm", "want", "need", "find", "me", "show",
+    "something", "some", "please", "a", "an", "the", "in", "under",
+}
+
+
+def _normalize_size(raw: str) -> str:
+    raw = " ".join(raw.lower().split())
+    if raw in _SIZE_WORDS:
+        return _SIZE_WORDS[raw]
+    if raw.startswith("us"):
+        return "US " + raw[2:].strip()
+    if raw[0].isdigit():
+        return f"US {raw}"  # a bare number is a shoe size in this data
+    return raw.upper()
+
+
+def _parse_query(query: str) -> dict:
+    """
+    Pull a description, a size, and a max_price out of a plain-language query.
+
+    "vintage graphic tee size M under $30"
+        → {"description": "vintage graphic tee", "size": "M", "max_price": 30.0}
+
+    size and max_price are None when the query doesn't mention them.
+    """
+    text = query
+
+    max_price = None
+    price_match = _PRICE_RE.search(text)
+    if price_match:
+        max_price = float(price_match.group(1) or price_match.group(2))
+        text = text[:price_match.start()] + " " + text[price_match.end():]
+
+    size = None
+    size_match = _SIZE_RE.search(text)
+    if size_match:
+        size = _normalize_size(size_match.group(1))
+        text = text[:size_match.start()] + " " + text[size_match.end():]
+
+    words = re.findall(r"[a-z0-9']+", text.lower())
+    description = " ".join(w for w in words if w not in _FILLER)
+
+    return {"description": description, "size": size, "max_price": max_price}
+
+
+def _no_results_message(parsed: dict) -> str:
+    """The empty-search message: what was searched, and what to change."""
+    description = parsed["description"]
+    size = parsed["size"]
+    max_price = parsed["max_price"]
+
+    if not description:
+        return (
+            "I couldn't tell what item you're looking for. Describe it in a few "
+            "words, like 'graphic tee' or 'denim jacket'."
+        )
+
+    searched = f'"{description}"'
+    if size:
+        searched += f" in size {size}"
+    if max_price is not None:
+        searched += f" under ${max_price:g}"
+
+    tips = []
+    if max_price is not None:
+        tips.append("raise your price limit")
+    if size:
+        tips.append(f"drop the size {size}")
+    tips.append("use broader words, like 'dress', 'jacket', or 'tee'")
+
+    if len(tips) == 1:
+        advice = tips[0]
+    else:
+        advice = ", ".join(tips[:-1]) + ", or " + tips[-1]
+    return f"No listings matched {searched}. To find something, {advice}."
 
 
 # ── planning loop ─────────────────────────────────────────────────────────────
@@ -107,9 +217,45 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     """
     session = new_session(query, wardrobe)
 
-    # TODO: delete these two lines and build the loop.
-    session["error"] = "The planning loop isn't built yet — see the TODO in agent.py."
-    return session
+    # Each pass looks at what the session holds so far and runs the one step
+    # that's missing. Every tool reads its inputs from the session and writes
+    # its result back.
+    count = 0
+    while True:
+        count += 1
+        trace.check_iterations(count)
+
+        if not session["parsed"]:
+            session["parsed"] = _parse_query(session["query"])
+
+        elif session["selected_item"] is None:
+            parsed = session["parsed"]
+            session["search_results"] = search_listings(
+                parsed["description"],
+                size=parsed["size"],
+                max_price=parsed["max_price"],
+            )
+
+            # THE BRANCH: nothing found → explain what to change, and stop
+            # before suggest_outfit ever sees an empty result.
+            if not session["search_results"]:
+                session["error"] = _no_results_message(parsed)
+                return session
+
+            session["selected_item"] = session["search_results"][0]
+
+        elif session["outfit_suggestion"] is None:
+            session["outfit_suggestion"] = suggest_outfit(
+                session["selected_item"], session["wardrobe"]
+            )
+
+        elif session["fit_card"] is None:
+            session["fit_card"] = create_fit_card(
+                session["outfit_suggestion"], session["selected_item"]
+            )
+
+        else:
+            return session
 
 
 # ── running it directly ───────────────────────────────────────────────────────
