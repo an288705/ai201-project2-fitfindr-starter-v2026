@@ -244,11 +244,11 @@ that produced it:
 
 | # | Criterion | Target | Verdict | How I decided |
 |---|---|---|---|---|
-| 1 | matching query completes | 4/5 | 5/5 | saw run |
-| 2 | impossible query stops early  | 4/5 | 5/5 | saw run |
-| 3 | The item search picks is the item both later tools receive | 4/5 | 5/5 | saw run |
-| 4 | The fit card states the real price once and names the platform | 4/5 | 5/5 | saw run |
-| 5 | A broken API key gives a message, not a crash | 4/5 | 5/5  | I saw on Loop Trace |
+| 1 | matching query completes | 4/5 | MET | saw run |
+| 2 | impossible query stops early  | 4/5 | MET | saw run |
+| 3 | The item search picks is the item both later tools receive | MET | 5/5 | saw run |
+| 4 | The fit card states the real price once and names the platform | MET | 5/5 | saw run |
+| 5 | A broken API key gives a message, not a crash | 4/5 | MET  | I saw on Loop Trace |
 
 **Diagnoses**
 
@@ -316,11 +316,11 @@ full. -->
 
 | # | Criterion | Target | Verdict | How I decided |
 |---|---|---|---|---|
-| 1 | matching query completes | 4/5 | 5/5 | saw run |
-| 2 | impossible query stops early  | 4/5 | 5/5 | saw run |
-| 3 | The item search picks is the item both later tools receive | 4/5 | 5/5 | saw run |
-| 4 | The fit card states the real price once and names the platform | 4/5 | 5/5 | saw run |
-| 5 | A broken API key gives a message, not a crash | 4/5 | 5/5  | I saw on Loop Trace |
+| 1 | matching query completes | 4/5 | MET | saw run |
+| 2 | impossible query stops early  | 4/5 | MET | saw run |
+| 3 | The item search picks is the item both later tools receive | 4/5 | MET | saw run |
+| 4 | The fit card states the real price once and names the platform | 4/5 | MET | saw run |
+| 5 | A broken API key gives a message, not a crash | 4/5 | MET  | I saw on Loop Trace |
 
 **Did it help, and how do I know:**
 
