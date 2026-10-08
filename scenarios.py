@@ -28,13 +28,6 @@ SCENARIOS = [
         "wardrobe": "example",
         "criterion": 2,
     },
-    {
-        # A user with nothing saved. One of unit 4's three failure modes.
-        "name": "empty wardrobe",
-        "query": "denim jacket under $50",
-        "wardrobe": "empty",
-        "criterion": None,
-    },
     # TODO: add what your criteria 3, 4 and 5 need.
     #
     # Set "criterion" to the number in criteria.md that the scenario tests.
@@ -47,6 +40,27 @@ SCENARIOS = [
     # For a fit-card criterion, you probably want the SAME query listed more
     # than once, or several different items, depending on what your criterion
     # actually says.
+    {
+        # Criterion 3: The item search picks is the item both later tools receive
+        "name": "The item search picks is the item both later tools receive",
+        "query": "vintage graphic tee size L under $30",
+        "wardrobe": "example",
+        "criterion": 3,
+    },
+    {
+        # Criterion 4: The fit card states the real price once and names the platform
+        "name": "The fit card states the real price once and names the platform",
+        "query": "silk slip dress in midi length under $40",
+        "wardrobe": "example",
+        "criterion": 4,
+    },
+    {
+        # A user with nothing saved. One of unit 4's three failure modes.
+        "name": "empty wardrobe",
+        "query": "denim jacket under $50",
+        "wardrobe": "empty",
+        "criterion": None,
+    },
 ]
 
 WARDROBES = ("example", "empty")
