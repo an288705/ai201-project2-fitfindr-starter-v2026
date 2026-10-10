@@ -209,11 +209,11 @@ Claude also wrote most of `create_fit_card` and the `run_agent` loop. I asked wh
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. matching query completes |  |   |   |   |   |   |  |
+| 2. impossible query stops early |  |   |   |   |   |   |  |
+| 3. The item search picks is the item both later tools receive |  |   |   |   |   |   |  |
+| 4. The fit card states the real price once and names the platform |  |   |   |   |   |   |  |
+| empty wardrobe _(diagnostic — not one of your five)_ |  |   |   |   |   |   |  |
 
 **Real output from one try**, pasted as text, naming the file and function
 that produced it:
@@ -309,8 +309,10 @@ full. -->
      `python run_eval.py --label after` -->
 
 **What I changed:**
+Nothing
 
 **Which failure it was meant to fix:**
+No failure
 
 ### Run Log — After
 
